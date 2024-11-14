@@ -1,65 +1,66 @@
 const express = require('express');
 const router = express.Router();
-const con = require('../config/db'); // Assurez-vous que votre connexion à la base de données est bien configurée
+const con = require('../config/db');
 
-// Fonction pour calculer la semaine et la période actuelle si besoin
+const getWeeklyPeriod = (weekNumber = 1, baseDate = new Date()) => {
+    baseDate.setHours(0, 0, 0, 0);
+    const dayOfWeek = baseDate.getDay();
+    const startOfWeek = new Date(baseDate);
+    startOfWeek.setDate(baseDate.getDate() - ((dayOfWeek + 2) % 7) + (7 * (weekNumber - 1)));
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+    return {
+        startDate: startOfWeek.toISOString().split('T')[0],
+        endDate: endOfWeek.toISOString().split('T')[0],
+    };
+};
+
 router.get('/leaderboard', (req, res) => {
-    const week = parseInt(req.query.week, 10) || getCurrentWeekAndPeriod().currentWeek;
+    const weekNumber = parseInt(req.query.week, 10) || 1;
+    const { startDate, endDate } = getWeeklyPeriod(weekNumber);
 
-    // Requête pour récupérer les points de chaque jour de la semaine pour chaque joueur
-    const query = `
-        SELECT joueurs.id, joueurs.pseudo, classements.date, classements.points
-        FROM joueurs
-        JOIN classements ON joueurs.id = classements.joueur_id
-        WHERE classements.semaine = ?
-        ORDER BY joueurs.id, classements.date
-    `;
+    console.log(`Fetching leaderboard for week ${weekNumber}: ${startDate} - ${endDate}`); // Log pour les dates
+    console.log("SQL Query will be executed with dates:", { startDate, endDate });
 
-    con.query(query, [week], (error, results) => {
+    const leaderboardQuery = `
+    SELECT 
+        joueurs.id AS joueur_id,
+        joueurs.pseudo,
+        IFNULL(SUM(classements.points), 0) AS total_points,
+        GROUP_CONCAT(classements.points ORDER BY classements.start_date) AS points_by_day
+    FROM joueurs
+    LEFT JOIN classements ON joueurs.id = classements.joueur_id
+    WHERE (classements.start_date BETWEEN ? AND ?) OR classements.joueur_id IS NULL
+    GROUP BY joueurs.id
+    ORDER BY total_points DESC;
+`;
+
+
+    console.log("Executing SQL Query:", leaderboardQuery); // Log pour la requête SQL
+
+    con.query(leaderboardQuery, [startDate, endDate], (error, results) => {
         if (error) {
             console.error('Erreur lors de la récupération du leaderboard :', error);
             return res.status(500).json({ message: 'Erreur serveur' });
         }
 
-        // Organiser les résultats par joueur
-        const leaderboard = results.reduce((acc, row) => {
-            const { id, pseudo, date, points } = row;
+        console.log("Raw Results from Database:", results); // Log pour les résultats bruts
 
-            if (!acc[id]) {
-                acc[id] = { pseudo, pointsByDay: Array(10).fill(0) };
-            }
+        const leaderboard = results.map(row => {
+            const pointsByDay = row.points_by_day ? row.points_by_day.split(',').map(Number) : Array(10).fill(0);
 
-            // Calcul de l'index du jour de la semaine (0 pour lundi, 6 pour dimanche)
-            const dayIndex = new Date(date).getDay() - 1; // Ajustement si la semaine commence le lundi
-            acc[id].pointsByDay[dayIndex] = points;
+            return {
+                pseudo: row.pseudo,
+                totalPoints: row.total_points,
+                pointsByDay: pointsByDay.concat(Array(10 - pointsByDay.length).fill(0)).slice(0, 10)
+            };
+        });
 
-            return acc;
-        }, {});
-
-        res.json(Object.values(leaderboard));
-    });
-});
-
-// Route pour récupérer le leaderboard de la semaine donnée
-router.get('/leaderboard', (req, res) => {
-    const week = parseInt(req.query.week, 10) || getCurrentWeekAndPeriod().currentWeek; // Prend la semaine de la requête ou la semaine actuelle
-
-    // Requête SQL pour obtenir le classement hebdomadaire
-    const query = `
-        SELECT joueurs.id, joueurs.pseudo, SUM(classements.points) AS total_points
-        FROM joueurs
-        JOIN classements ON joueurs.id = classements.joueur_id
-        WHERE classements.semaine = ?
-        GROUP BY joueurs.id
-        ORDER BY total_points DESC
-    `;
-
-    con.query(query, [week], (error, results) => {
-        if (error) {
-            console.error('Erreur lors de la récupération du leaderboard :', error);
-            return res.status(500).json({ message: 'Erreur serveur' });
-        }
-        res.json(results); // Envoie les résultats triés au client
+        res.json({
+            players: leaderboard,
+            period: { startDate, endDate }
+        });
     });
 });
 
