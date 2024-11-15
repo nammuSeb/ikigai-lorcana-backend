@@ -12,6 +12,17 @@ const catalogueRoutes = require('./routes/catalogueRoutes');
 const classementsRoutes = require('./routes/classementsRoutes');
 const parametresRoutes = require('./routes/parametresRoutes');
 
+// Middleware pour afficher les logs des requêtes et des en-têtes CORS
+app.use((req, res, next) => {
+    console.log('--- Request Received ---');
+    console.log(`Method: ${req.method}`);
+    console.log(`Path: ${req.path}`);
+    console.log(`Origin: ${req.headers.origin}`);
+    console.log('Headers:', req.headers);
+    console.log('-------------------------');
+    next();
+});
+
 // Configuration de multer pour le stockage des fichiers
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -24,10 +35,20 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
+// Configuration de CORS avec logs pour chaque requête
 app.use(cors({
-    //origin: 'http://localhost:5173',
-    origin: 'https://inkigai.ch',
-    //origin: 'http://ikigai.jcloud.ik-server.com/',
+    origin: (origin, callback) => {
+        console.log(`CORS request from origin: ${origin}`);
+        // Ajoutez ici vos conditions pour autoriser l'origine
+        const allowedOrigins = ['http://localhost:5173', 'https://inkigai.ch', 'http://ikigai.jcloud.ik-server.com/'];
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.log(`Blocked CORS request from origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true // Autorise l'envoi des cookies et des identifiants
 }));
 
 app.use(express.json());
@@ -45,9 +66,11 @@ app.use('/api/classements', classementsRoutes);
 // Route pour l'upload d'images
 app.post('/api/upload', upload.single('image'), (req, res) => {
     if (!req.file) {
+        console.error('Aucun fichier uploadé');
         return res.status(400).json({ message: 'Aucun fichier uploadé' });
     }
     // Renvoie le chemin de l'image pour l'utiliser dans la base de données
+    console.log(`Image uploaded: ${req.file.filename}`);
     res.json({ imageUrl: `/uploads/${req.file.filename}` });
 });
 
