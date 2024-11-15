@@ -26,8 +26,8 @@ const upload = multer({ storage: storage });
 
 app.use(cors({
     //origin: 'http://localhost:5173',
-    //origin: 'https://www.inkigai.ch',
-    origin: 'http://ikigai.jcloud.ik-server.com/',
+    origin: 'https://www.inkigai.ch',
+    //origin: 'http://ikigai.jcloud.ik-server.com/',
 }));
 
 app.use(express.json());
