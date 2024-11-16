@@ -14,12 +14,14 @@ const parametresRoutes = require('./routes/parametresRoutes');
 
 // Middleware pour afficher les logs des requêtes et des en-têtes CORS
 app.use((req, res, next) => {
+    /*
     console.log('--- Request Received ---');
     console.log(`Method: ${req.method}`);
     console.log(`Path: ${req.path}`);
     console.log(`Origin: ${req.headers.origin}`);
     console.log('Headers:', req.headers);
     console.log('-------------------------');
+    */
     next();
 });
 
@@ -38,9 +40,9 @@ const upload = multer({ storage: storage });
 // Configuration de CORS avec logs pour chaque requête
 app.use(cors({
     origin: (origin, callback) => {
-        console.log(`CORS request from origin: ${origin}`);
+        //console.log(`CORS request from origin: ${origin}`);
         // Ajoutez ici vos conditions pour autoriser l'origine
-        const allowedOrigins = ['http://localhost:5173', 'https://inkigai.ch', 'https://www.inkigai.ch', 'http://ikigai.jcloud.ik-server.com/'];
+        const allowedOrigins = ['https://inkigai.ch', 'https://www.inkigai.ch', 'http://ikigai.jcloud.ik-server.com/'];
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {

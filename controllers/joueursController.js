@@ -1,80 +1,78 @@
 const db = require('../config/db');
+const con = require("../config/db");
 
 
-// Helper function to calculate custom week, session, and league based on a specific date
-const getCustomWeekRange = (date) => {
-    const customStartDay = 5; // Start from Friday
-    const yearStart = new Date(date.getFullYear(), 0, 1);
-    const firstFriday = new Date(yearStart.setDate(yearStart.getDate() + ((customStartDay - yearStart.getDay() + 7) % 7)));
+const POINT_ZERO = new Date("2024-11-15");
 
-    const diffDays = Math.floor((date - firstFriday) / (24 * 60 * 60 * 1000));
-    const currentWeek = Math.ceil((diffDays + 1) / 7);
-    const currentSession = Math.ceil(currentWeek / 4);
-    const currentLeague = Math.ceil(currentSession / 3);
+const getWeeklyPeriod = (weekNumber = 1) => {
+    if (weekNumber < 1 || weekNumber > 4) {
+        throw new Error("Le numéro de semaine doit être compris entre 1 et 4.");
+    }
 
-    const weekStartDate = new Date(firstFriday.getTime() + (currentWeek - 1) * 7 * 24 * 60 * 60 * 1000);
-    const weekEndDate = new Date(weekStartDate.getTime() + 6 * 24 * 60 * 60 * 1000);
+    const startOfPeriod = new Date(POINT_ZERO);
+    startOfPeriod.setDate(POINT_ZERO.getDate() + (7 * (weekNumber - 1)));
 
-    return { week: currentWeek, session: currentSession, league: currentLeague, start: weekStartDate, end: weekEndDate };
+    const endOfPeriod = new Date(startOfPeriod);
+    endOfPeriod.setDate(startOfPeriod.getDate() + 6);
+
+    return {
+        startDate: startOfPeriod.toISOString().split("T")[0],
+        endDate: endOfPeriod.toISOString().split("T")[0],
+    };
 };
 
-// Controller to get player data by slug
-exports.getJoueurBySlug = (req, res) => {
-    const { slug } = req.params;
-    const { week, session, league, start, end } = getCustomWeekRange(new Date());
 
-    db.query('SELECT * FROM joueurs WHERE pseudo = ?', [slug], (err, joueurResults) => {
-        if (err || joueurResults.length === 0) {
-            console.error("Error fetching player data:", err);
-            return res.status(500).json({ message: "Error fetching player data" });
+exports.getJoueurBySlug = (req, res) => {
+    try {
+        const weekNumber = parseInt(req.query.week, 10) || 1;
+        if (weekNumber < 1 || weekNumber > 4) {
+            return res.status(400).json({ message: "Le numéro de semaine doit être compris entre 1 et 4." });
         }
 
-        const joueurData = joueurResults[0];
-        joueurData.session = session;
-        joueurData.league = league;
+        const { startDate, endDate } = getWeeklyPeriod(weekNumber);
+        const slug = req.params.slug;
 
-        // Fetch weekly challenges
-        db.query('SELECT * FROM defis WHERE type = "defi_semaine"', (err, defisResults) => {
-            if (err) {
-                console.error("Error fetching weekly challenges:", err);
-                return res.status(500).json({ message: "Error fetching weekly challenges" });
+        // Requête SQL pour récupérer les informations du joueur
+        const playerQuery = `
+            SELECT *
+            FROM joueurs
+            WHERE pseudo = ?`;
+
+        // Requête SQL pour récupérer les points de la semaine
+        const pointsQuery = `
+            SELECT points, start_date, end_date
+            FROM classements
+            WHERE joueur_id = ? AND (start_date BETWEEN ? AND ?)`;
+
+        con.query(playerQuery, [slug], (err, playerResults) => {
+            if (err || playerResults.length === 0) {
+                res.status(404).json({ message: "Joueur non trouvé." });
+                return;
             }
 
-            // Fetch completed challenges for the current week
-            db.query(
-                `SELECT WEEK(classements.start_date, 3) AS week, SUM(classements.points) AS total_points 
-                 FROM classements 
-                 WHERE joueur_id = ? 
-                 AND classements.start_date >= ? 
-                 AND classements.end_date <= ?
-                 GROUP BY week`,
-                [joueurData.id, start, end],
-                (err, pointsResults) => {
-                    if (err) {
-                        console.error("Error fetching weekly points:", err);
-                        return res.status(500).json({ message: "Error fetching weekly points" });
-                    }
-
-                    // Creating an object for points by week
-                    const pointsByWeek = {};
-                    pointsResults.forEach(row => {
-                        pointsByWeek[row.week] = row.total_points;
-                    });
-
-                    joueurData.pointsByWeek = pointsByWeek;
-                    joueurData.session = session;
-                    joueurData.league = league;
-
-                    console.log("Final player data to return:", joueurData);
-                    res.json(joueurData);
+            const player = playerResults[0];
+            con.query(pointsQuery, [player.id, startDate, endDate], (err, pointsResults) => {
+                if (err) {
+                    res.status(500).json({ message: "Erreur lors de la récupération des points." });
+                    return;
                 }
-            );
 
+                const weeklyPoints = pointsResults.map((entry) => ({
+                    points: entry.points,
+                    startDate: entry.start_date,
+                    endDate: entry.end_date,
+                }));
+
+                res.json({
+                    ...player,
+                    weeklyPoints,
+                });
+            });
         });
-    });
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
 };
-
-
 
 
 // Obtenir tous les joueurs

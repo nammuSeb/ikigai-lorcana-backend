@@ -1,21 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db'); // Assurez-vous que votre connexion à la base de données est correcte
+const defisController = require('../controllers/defisController'); // Assurez-vous que ce chemin est correct
 
-// Route pour obtenir les défis par type
-router.get('/:type', (req, res) => {
-    const type = req.params.type;
-
-    const query = 'SELECT * FROM defis WHERE type = ?';
-    db.query(query, [type], (error, results) => {
-        console.log(results)
-        if (error) {
-            console.error('Erreur lors de la récupération des défis:', error);
-            res.status(500).json({ message: 'Erreur serveur' });
-        } else {
-            res.json(results);
-        }
-    });
-});
+// Route pour obtenir les défis par slug et semaine
+router.get('/slug/:slug', defisController.getDefisBySlugAndWeek);
 
 module.exports = router;
