@@ -1,25 +1,59 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db'); // Assurez-vous que votre connexion à la base de données est correctement configurée
+const db = require('../config/db');
 
-// Route pour obtenir les tournois (À venir, Passés, Annulés)
 router.get('/', (req, res) => {
     const statut = req.query.statut || 'a_venir';
+    let query = '';
+    let params = [];
 
-    const query = `
-        SELECT id, nom, type, date, heure, prix, participants_max, description, location, lien, statut
-        FROM tournois
-        WHERE statut = ?
-        ORDER BY date ASC, heure ASC
-    `;
+    // Obtenir la date actuelle au format YYYY-MM-DD
+    const currentDate = new Date().toISOString().split('T')[0];
+    const currentTime = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
-    db.query(query, [statut], (error, results) => {
+    if (statut === 'a_venir') {
+        // Pour les tournois à venir, on vérifie la date ET l'heure
+        query = `
+            SELECT id, nom, type, date, heure, prix, participants_max, description, location, lien, statut
+            FROM tournois
+            WHERE 
+                (date > ?) OR 
+                (date = ? AND heure > ?) AND
+                statut != 'annule' AND
+                statut != 'passe'
+            ORDER BY date ASC, heure ASC
+        `;
+        params = [currentDate, currentDate, currentTime];
+    } else if (statut === 'passe') {
+        // Pour les tournois passés
+        query = `
+            SELECT id, nom, type, date, heure, prix, participants_max, description, location, lien, statut, gagnant_id
+            FROM tournois
+            WHERE 
+                (date < ?) OR 
+                (date = ? AND heure < ?) OR
+                statut = 'passe'
+            ORDER BY date DESC, heure DESC
+        `;
+        params = [currentDate, currentDate, currentTime];
+    } else {
+        // Pour les autres statuts (comme 'annule')
+        query = `
+            SELECT id, nom, type, date, heure, prix, participants_max, description, location, lien, statut
+            FROM tournois
+            WHERE statut = ?
+            ORDER BY date ASC, heure ASC
+        `;
+        params = [statut];
+    }
+
+    db.query(query, params, (error, results) => {
         if (error) {
             console.error('Erreur lors de la récupération des tournois:', error);
             res.status(500).json({ message: 'Erreur serveur' });
-        } else {
-            res.json(results);
+            return;
         }
+        res.json(results);
     });
 });
 

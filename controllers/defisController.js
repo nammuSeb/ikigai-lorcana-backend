@@ -1,6 +1,4 @@
 const db = require('../config/db');
-const con = require("../config/db");
-
 
 const POINT_ZERO = new Date("2024-11-15");
 
@@ -21,55 +19,153 @@ const getWeeklyPeriod = (weekNumber = 1) => {
     };
 };
 
+// Fonction pour obtenir les défis par type
+exports.getDefisByType = (req, res) => {
+    const type = req.params.type;
+    const weekNumber = parseInt(req.query.week, 10) || 1;
+
+    console.log(`[LOG] Requête reçue : Type = ${type}, Week = ${weekNumber}`);
+
+    try {
+        const { startDate, endDate } = getWeeklyPeriod(weekNumber);
+        console.log(`[LOG] Période calculée : Start = ${startDate}, End = ${endDate}`);
+
+        let defisQuery = '';
+        let queryParams = [];
+
+        // Requête SQL différente selon le type de défi
+        if (type === 'defi_semaine') {
+            defisQuery = `
+                SELECT 
+                    id,
+                    nom,
+                    description,
+                    points,
+                    points_type,
+                    type,
+                    date_debut,
+                    date_fin
+                FROM defis
+                WHERE type = ?
+                    AND date_debut <= ?
+                    AND date_fin >= ?
+            `;
+            queryParams = [type, startDate, endDate];
+        } else {
+            defisQuery = `
+                SELECT 
+                    id,
+                    nom,
+                    description,
+                    points,
+                    points_type,
+                    type
+                FROM defis
+                WHERE type = ?
+            `;
+            queryParams = [type];
+        }
+
+        console.log(`[LOG] Exécution de la requête SQL :`, defisQuery);
+        console.log(`[LOG] Paramètres :`, queryParams);
+
+        db.query(defisQuery, queryParams, (err, results) => {
+            if (err) {
+                console.error('[ERREUR] Erreur lors de la récupération des défis :', err);
+                return res.status(500).json({
+                    message: "Erreur serveur lors de la récupération des défis.",
+                    error: err.message
+                });
+            }
+
+            console.log(`[LOG] ${results.length} défis trouvés`);
+            res.json(results);
+        });
+    } catch (error) {
+        console.error('[ERREUR] Erreur lors du traitement :', error);
+        res.status(400).json({
+            message: "Erreur lors du traitement de la requête",
+            error: error.message
+        });
+    }
+};
+
+// Fonction pour obtenir les défis d'un joueur spécifique
 exports.getDefisBySlugAndWeek = (req, res) => {
     const slug = req.params.slug;
     const weekNumber = parseInt(req.query.week, 10) || 1;
 
-    // Log de la requête reçue
     console.log(`[LOG] Requête reçue : Slug = ${slug}, Week = ${weekNumber}`);
 
-    // Calcul des périodes hebdomadaires
-    const { startDate, endDate } = getWeeklyPeriod(weekNumber);
-    console.log(`[LOG] Période calculée : Start = ${startDate}, End = ${endDate}`);
+    try {
+        const { startDate, endDate } = getWeeklyPeriod(weekNumber);
+        console.log(`[LOG] Période calculée : Start = ${startDate}, End = ${endDate}`);
 
-    // Requête SQL pour trouver l'ID du joueur
-    const playerQuery = `SELECT id FROM joueurs WHERE pseudo = ?`;
-    const defisQuery = `
-        SELECT d.id, d.nom, d.description, d.points, d.type, 
-               IF(dv.id IS NOT NULL, 1, 0) AS completed
-        FROM defis d
-        LEFT JOIN defis_valides dv 
-          ON d.id = dv.defi_id 
-          AND dv.date_validation BETWEEN ? AND ?
-        WHERE d.type = 'defi_semaine' 
-          AND d.date_debut <= ? 
-          AND d.date_fin >= ?`;
+        const playerQuery = `SELECT id FROM joueurs WHERE pseudo = ?`;
+        const defisQuery = `
+            SELECT 
+                d.id, 
+                d.nom, 
+                d.description, 
+                d.points, 
+                d.points_type,
+                d.type, 
+                IF(dv.id IS NOT NULL, 1, 0) AS completed
+            FROM defis d
+            LEFT JOIN defis_valides dv 
+                ON d.id = dv.defi_id 
+                AND dv.joueur_id = ?
+            WHERE d.type = 'defi_semaine' 
+                AND d.date_debut <= ? 
+                AND d.date_fin >= ?;
+        `;
 
-    // Recherche du joueur
-    db.query(playerQuery, [slug], (err, playerResults) => {
-        if (err) {
-            console.error(`[ERREUR] Erreur lors de la récupération du joueur : ${err}`);
-            return res.status(500).json({ message: "Erreur serveur lors de la récupération du joueur." });
-        }
-
-        if (playerResults.length === 0) {
-            console.warn(`[AVERTISSEMENT] Aucun joueur trouvé avec le pseudo : ${slug}`);
-            return res.status(404).json({ message: "Joueur non trouvé." });
-        }
-
-        const playerId = playerResults[0].id;
-        console.log(`[LOG] Joueur trouvé : ID = ${playerId}, Slug = ${slug}`);
-
-        // Recherche des défis valides
-        db.query(defisQuery, [startDate, endDate, endDate, startDate], (err, defisResults) => {
+        // Recherche d'abord le joueur
+        db.query(playerQuery, [slug], (err, playerResults) => {
             if (err) {
-                console.error(`[ERREUR] Erreur lors de la récupération des défis : ${err}`);
-                return res.status(500).json({ message: "Erreur serveur lors de la récupération des défis." });
+                console.error(`[ERREUR] Erreur lors de la récupération du joueur :`, err);
+                return res.status(500).json({
+                    message: "Erreur serveur lors de la récupération du joueur.",
+                    error: err.message
+                });
             }
 
-            console.log(`[LOG] Défis récupérés (${defisResults.length} résultats) :`, defisResults);
+            if (playerResults.length === 0) {
+                console.warn(`[AVERTISSEMENT] Aucun joueur trouvé avec le pseudo : ${slug}`);
+                return res.status(404).json({ message: "Joueur non trouvé." });
+            }
 
-            res.json({ week: weekNumber, defis: defisResults });
+            const playerId = playerResults[0].id;
+            console.log(`[LOG] Joueur trouvé : ID = ${playerId}`);
+
+            // Puis recherche les défis du joueur
+            db.query(defisQuery, [playerId, startDate, endDate], (err, defisResults) => {
+                if (err) {
+                    console.error(`[ERREUR] Erreur lors de la récupération des défis :`, err);
+                    return res.status(500).json({
+                        message: "Erreur serveur lors de la récupération des défis.",
+                        error: err.message
+                    });
+                }
+
+                if (defisResults.length === 0) {
+                    console.warn(`[AVERTISSEMENT] Aucun défi trouvé pour la semaine ${weekNumber}`);
+                }
+
+                console.log(`[LOG] ${defisResults.length} défis récupérés`);
+                res.json({
+                    week: weekNumber,
+                    startDate,
+                    endDate,
+                    defis: defisResults
+                });
+            });
         });
-    });
+    } catch (error) {
+        console.error('[ERREUR] Erreur lors du traitement :', error);
+        res.status(400).json({
+            message: "Erreur lors du traitement de la requête",
+            error: error.message
+        });
+    }
 };

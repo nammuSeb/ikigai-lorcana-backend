@@ -8,6 +8,7 @@ const joueursRoutes = require('./routes/joueursRoutes');
 const defisRoutes = require('./routes/defisRoutes');
 const quetesRoutes = require('./routes/quetesRoutes');
 const tournoisRoutes = require('./routes/tournoisRoutes');
+const reglementRoutes = require('./routes/reglementRoutes');
 const catalogueRoutes = require('./routes/catalogueRoutes');
 const classementsRoutes = require('./routes/classementsRoutes');
 const parametresRoutes = require('./routes/parametresRoutes');
@@ -42,7 +43,7 @@ app.use(cors({
     origin: (origin, callback) => {
         //console.log(`CORS request from origin: ${origin}`);
         // Ajoutez ici vos conditions pour autoriser l'origine
-        const allowedOrigins = ['https://inkigai.ch', 'https://www.inkigai.ch', 'http://ikigai.jcloud.ik-server.com/'];
+        const allowedOrigins = ['http://localhost:5173', 'https://inkigai.ch', 'https://www.inkigai.ch', 'http://ikigai.jcloud.ik-server.com/'];
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
@@ -61,9 +62,10 @@ app.use('/api/joueurs', joueursRoutes);
 app.use('/api/defis', defisRoutes);
 //app.use('/api/quetes', quetesRoutes);
 app.use('/api/tournois', tournoisRoutes);
+app.use('/api/reglement', reglementRoutes);
 app.use('/api/catalogue', catalogueRoutes);
 app.use('/api/classements', classementsRoutes);
-//app.use('/api/parametres', parametresRoutes);
+app.use('/api/parametres', parametresRoutes);
 
 // Route pour l'upload d'images
 app.post('/api/upload', upload.single('image'), (req, res) => {

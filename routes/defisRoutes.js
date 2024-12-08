@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const defisController = require('../controllers/defisController'); // Assurez-vous que ce chemin est correct
+const defisController = require('../controllers/defisController');
 
-// Route pour obtenir les défis par slug et semaine
+// Route pour obtenir les défis par type (arene, quete, defi_semaine)
+router.get('/:type', defisController.getDefisByType);
+
+// Garder aussi la route existante si nécessaire
 router.get('/slug/:slug', defisController.getDefisBySlugAndWeek);
 
 module.exports = router;
