@@ -2,17 +2,20 @@ const express = require('express');
 const router = express.Router();
 const con = require('../config/db');
 
-const getWeeklyPeriod = (weekNumber = 1, baseDate = new Date()) => {
-    baseDate.setHours(0, 0, 0, 0);
-    const dayOfWeek = baseDate.getDay();
-    const startOfWeek = new Date(baseDate);
-    startOfWeek.setDate(baseDate.getDate() - ((dayOfWeek + 2) % 7) + (7 * (weekNumber - 1)));
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
+const getWeeklyPeriod = (weekNumber = 1) => {
+    if (weekNumber < 1 || weekNumber > 4) {
+        throw new Error("Le numéro de semaine doit être compris entre 1 et 4.");
+    }
+
+    const startOfPeriod = new Date("2024-11-16"); // Date de départ fixe
+    startOfPeriod.setDate(startOfPeriod.getDate() + (7 * (weekNumber - 1)));
+
+    const endOfPeriod = new Date(startOfPeriod);
+    endOfPeriod.setDate(startOfPeriod.getDate() + 6);
 
     return {
-        startDate: startOfWeek.toISOString().split('T')[0],
-        endDate: endOfWeek.toISOString().split('T')[0],
+        startDate: startOfPeriod.toISOString().split("T")[0],
+        endDate: endOfPeriod.toISOString().split("T")[0],
     };
 };
 
@@ -20,46 +23,56 @@ router.get('/leaderboard', (req, res) => {
     const weekNumber = parseInt(req.query.week, 10) || 1;
     const { startDate, endDate } = getWeeklyPeriod(weekNumber);
 
-    console.log(`Fetching leaderboard for week ${weekNumber}: ${startDate} - ${endDate}`);
-
     const leaderboardQuery = `
         SELECT 
-            joueurs.id AS joueur_id,
-            joueurs.pseudo,
-            joueurs.nickname,
-            IFNULL(SUM(classements.points), 0) AS total_points,
-            GROUP_CONCAT(classements.points ORDER BY classements.start_date) AS points_by_day
-        FROM joueurs
-        LEFT JOIN classements ON joueurs.id = classements.joueur_id
-        WHERE (classements.start_date BETWEEN ? AND ?) OR classements.joueur_id IS NULL
-        GROUP BY joueurs.id
-        ORDER BY total_points DESC;
+            j.id AS joueur_id,
+            j.pseudo,
+            j.nickname,
+            COALESCE(c.points, 0) as points,
+            c.start_date,
+            c.end_date
+        FROM joueurs j
+        LEFT JOIN classements c ON j.id = c.joueur_id 
+            AND c.start_date = ? 
+            AND c.end_date = ?
+        ORDER BY 
+            COALESCE(c.points, 0) DESC,
+            j.pseudo ASC;
     `;
-
-    console.log("Executing SQL Query:", leaderboardQuery);
 
     con.query(leaderboardQuery, [startDate, endDate], (error, results) => {
         if (error) {
-            console.error('Erreur lors de la récupération du leaderboard :', error);
+            console.error('Erreur lors de la récupération du leaderboard:', error);
             return res.status(500).json({ message: 'Erreur serveur' });
         }
 
-        console.log("Raw Results from Database:", results);
+        let rank = 0;
+        let previousPoints = -1;
+        let skipRanks = 0;
 
-        const leaderboard = results.map(row => {
-            const pointsByDay = row.points_by_day ? row.points_by_day.split(',').map(Number) : Array(10).fill(0);
+        const leaderboard = results.map((row, index) => {
+            if (row.points !== previousPoints) {
+                rank += 1 + skipRanks;
+                skipRanks = 0;
+                previousPoints = row.points;
+            } else {
+                skipRanks++;
+            }
 
             return {
                 pseudo: row.pseudo,
-                nickname: row.nickname || '', // Ajout du nickname avec une valeur par défaut vide
-                totalPoints: row.total_points,
-                pointsByDay: pointsByDay.concat(Array(10 - pointsByDay.length).fill(0)).slice(0, 10)
+                nickname: row.nickname || '',
+                points: row.points,
+                rank: rank,
+                pointsByDay: [row.points] // On retourne les points de la semaine dans un tableau
             };
         });
 
         res.json({
-            players: leaderboard,
-            period: { startDate, endDate }
+            week: weekNumber,
+            startDate,
+            endDate,
+            players: leaderboard
         });
     });
 });
