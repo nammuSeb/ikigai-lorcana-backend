@@ -10,7 +10,8 @@ const getWeeklyPeriod = (weekNumber = 1) => {
     }
 
     const startOfPeriod = new Date(POINT_ZERO);
-    startOfPeriod.setDate(POINT_ZERO.getDate() + (7 * (weekNumber - 1)));
+    // Ajouter un jour pour commencer le 16
+    startOfPeriod.setDate(POINT_ZERO.getDate() + 1 + (7 * (weekNumber - 1)));
 
     const endOfPeriod = new Date(startOfPeriod);
     endOfPeriod.setDate(startOfPeriod.getDate() + 6);
@@ -29,20 +30,35 @@ router.get('/:type', (req, res) => {
     try {
         const { startDate, endDate } = getWeeklyPeriod(weekNumber);
 
-        const query = `
-            SELECT 
-                id, nom, description, points, points_type, type
-            FROM defis
-            WHERE type = ?
-                AND (date_debut IS NULL OR date_debut <= ?)
-                AND (date_fin IS NULL OR date_fin >= ?)
-        `;
+        let query = '';
+        let params = [];
 
-        db.query(query, [type, endDate, startDate], (err, results) => {
+        if (type === 'defi_semaine') {
+            query = `
+                SELECT 
+                    id, nom, description, points, points_type, type
+                FROM defis
+                WHERE type = ?
+                    AND date_debut = ?
+                    AND date_fin = ?
+            `;
+            params = [type, startDate, endDate];
+        } else {
+            query = `
+                SELECT 
+                    id, nom, description, points, points_type, type
+                FROM defis
+                WHERE type = ?
+            `;
+            params = [type];
+        }
+
+        db.query(query, params, (err, results) => {
             if (err) {
                 console.error('Erreur lors de la récupération des défis:', err);
                 return res.status(500).json({ message: 'Erreur serveur' });
             }
+            console.log(`Défis trouvés pour ${type}, semaine ${weekNumber}:`, results.length);
             res.json(results);
         });
     } catch (error) {
@@ -50,7 +66,6 @@ router.get('/:type', (req, res) => {
     }
 });
 
-// Route pour les défis d'un joueur spécifique
 router.get('/player/:slug', (req, res) => {
     const slug = req.params.slug;
     const weekNumber = parseInt(req.query.week, 10) || 1;
@@ -71,16 +86,20 @@ router.get('/player/:slug', (req, res) => {
             LEFT JOIN defis_valides dv ON d.id = dv.defi_id 
                 AND dv.joueur_id = j.id
             WHERE d.type = 'defi_semaine'
-                AND d.date_debut <= ?
-                AND d.date_fin >= ?
+                AND d.date_debut = ?
+                AND d.date_fin = ?
             ORDER BY d.id ASC
         `;
 
-        db.query(query, [slug, endDate, startDate], (err, results) => {
+        console.log('Recherche des défis pour la période:', startDate, 'à', endDate);
+
+        db.query(query, [slug, startDate, endDate], (err, results) => {
             if (err) {
                 console.error('Erreur lors de la récupération des défis:', err);
                 return res.status(500).json({ message: 'Erreur serveur' });
             }
+
+            console.log(`Défis trouvés pour la semaine ${weekNumber}:`, results.length);
 
             res.json({
                 week: weekNumber,
@@ -90,6 +109,7 @@ router.get('/player/:slug', (req, res) => {
             });
         });
     } catch (error) {
+        console.error('Erreur:', error);
         res.status(500).json({ message: error.message });
     }
 });
