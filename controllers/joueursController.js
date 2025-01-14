@@ -22,58 +22,58 @@ const getWeeklyPeriod = (weekNumber = 1) => {
 };
 
 
-exports.getJoueurBySlug = (req, res) => {
+exports.getJoueurBySlug = async (req, res) => {
+    const { slug } = req.params;
+    const weekNumber = parseInt(req.query.week, 10) || 1;
+
     try {
-        const weekNumber = parseInt(req.query.week, 10) || 1;
-        if (weekNumber < 1 || weekNumber > 4) {
-            return res.status(400).json({ message: "Le numéro de semaine doit être compris entre 1 et 4." });
+        // Requête pour obtenir les informations de base du joueur
+        const playerQuery = `
+            SELECT 
+                j.pseudo,
+                j.nickname,
+                j.argent,
+                j.avatar_url
+            FROM joueurs j
+            WHERE j.pseudo = ?
+        `;
+
+        // Requête pour obtenir les points hebdomadaires
+        const pointsQuery = `
+            SELECT 
+                SUM(d.points) as points,
+                d.date_debut as startDate,
+                d.date_fin as endDate
+            FROM defis d
+            INNER JOIN defis_valides dv ON d.id = dv.defi_id
+            INNER JOIN joueurs j ON j.id = dv.joueur_id
+            WHERE j.pseudo = ?
+            GROUP BY d.date_debut, d.date_fin
+        `;
+
+        const [playerResults] = await db.query(playerQuery, [slug]);
+        const [weeklyPoints] = await db.query(pointsQuery, [slug]);
+
+        if (playerResults.length === 0) {
+            return res.status(404).json({ message: 'Joueur non trouvé' });
         }
 
-        const { startDate, endDate } = getWeeklyPeriod(weekNumber);
-        const slug = req.params.slug;
+        const playerData = {
+            ...playerResults[0],
+            weeklyPoints: weeklyPoints.map(week => ({
+                points: week.points,
+                startDate: week.startDate,
+                endDate: week.endDate
+            }))
+        };
 
-        // Requête SQL pour récupérer les informations du joueur
-        const playerQuery = `
-            SELECT *
-            FROM joueurs
-            WHERE pseudo = ?`;
+        res.json(playerData);
 
-        // Requête SQL pour récupérer les points de la semaine
-        const pointsQuery = `
-            SELECT points, start_date, end_date
-            FROM classements
-            WHERE joueur_id = ? AND (start_date BETWEEN ? AND ?)`;
-
-        con.query(playerQuery, [slug], (err, playerResults) => {
-            if (err || playerResults.length === 0) {
-                res.status(404).json({ message: "Joueur non trouvé." });
-                return;
-            }
-
-            const player = playerResults[0];
-            con.query(pointsQuery, [player.id, startDate, endDate], (err, pointsResults) => {
-                if (err) {
-                    res.status(500).json({ message: "Erreur lors de la récupération des points." });
-                    return;
-                }
-
-                const weeklyPoints = pointsResults.map((entry) => ({
-                    points: entry.points,
-                    startDate: entry.start_date,
-                    endDate: entry.end_date,
-                }));
-
-                res.json({
-                    ...player,
-                    weeklyPoints,
-                });
-            });
-        });
     } catch (error) {
-        res.status(400).json({ message: error.message });
+        console.error('Erreur lors de la récupération du joueur:', error);
+        res.status(500).json({ message: 'Erreur serveur' });
     }
 };
-
 
 // Obtenir tous les joueurs
 exports.getAllJoueurs = (req, res) => {

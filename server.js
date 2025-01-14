@@ -6,7 +6,6 @@ const app = express();
 
 const joueursRoutes = require('./routes/joueursRoutes');
 const defisRoutes = require('./routes/defisRoutes');
-const quetesRoutes = require('./routes/quetesRoutes');
 const tournoisRoutes = require('./routes/tournoisRoutes');
 const reglementRoutes = require('./routes/reglementRoutes');
 const catalogueRoutes = require('./routes/catalogueRoutes');
@@ -43,7 +42,13 @@ app.use(cors({
     origin: (origin, callback) => {
         //console.log(`CORS request from origin: ${origin}`);
         // Ajoutez ici vos conditions pour autoriser l'origine
-        const allowedOrigins = ['http://localhost:5173', 'https://inkigai.ch', 'https://www.inkigai.ch', 'http://ikigai.jcloud.ik-server.com/'];
+        const allowedOrigins = [
+            'http://localhost:5173',
+            'http://localhost:3000',
+            'https://inkigai.ch',
+            'https://www.inkigai.ch',
+            'http://ikigai.jcloud.ik-server.com'
+        ];
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {

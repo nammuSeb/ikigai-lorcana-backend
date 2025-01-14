@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const con = require('../config/db');
+const db = require('../config/db');
 
 const getWeeklyPeriod = (weekNumber = 1) => {
     if (weekNumber < 1 || weekNumber > 4) {
@@ -19,32 +19,29 @@ const getWeeklyPeriod = (weekNumber = 1) => {
     };
 };
 
-router.get('/leaderboard', (req, res) => {
-    const weekNumber = parseInt(req.query.week, 10) || 1;
-    const { startDate, endDate } = getWeeklyPeriod(weekNumber);
+router.get('/leaderboard', async (req, res) => {
+    try {
+        const weekNumber = parseInt(req.query.week, 10) || 1;
+        const { startDate, endDate } = getWeeklyPeriod(weekNumber);
 
-    const leaderboardQuery = `
-        SELECT 
-            j.id AS joueur_id,
-            j.pseudo,
-            j.nickname,
-            COALESCE(c.points, 0) as points,
-            c.start_date,
-            c.end_date
-        FROM joueurs j
-        LEFT JOIN classements c ON j.id = c.joueur_id 
-            AND c.start_date = ? 
-            AND c.end_date = ?
-        ORDER BY 
-            COALESCE(c.points, 0) DESC,
-            j.pseudo ASC;
-    `;
+        const leaderboardQuery = `
+            SELECT 
+                j.id AS joueur_id,
+                j.pseudo,
+                j.nickname,
+                COALESCE(c.points, 0) as points,
+                c.start_date,
+                c.end_date
+            FROM joueurs j
+            LEFT JOIN classements c ON j.id = c.joueur_id 
+                AND c.start_date = ? 
+                AND c.end_date = ?
+            ORDER BY 
+                COALESCE(c.points, 0) DESC,
+                j.pseudo ASC;
+        `;
 
-    con.query(leaderboardQuery, [startDate, endDate], (error, results) => {
-        if (error) {
-            console.error('Erreur lors de la récupération du leaderboard:', error);
-            return res.status(500).json({ message: 'Erreur serveur' });
-        }
+        const [results] = await db.query(leaderboardQuery, [startDate, endDate]);
 
         let rank = 0;
         let previousPoints = -1;
@@ -74,7 +71,11 @@ router.get('/leaderboard', (req, res) => {
             endDate,
             players: leaderboard
         });
-    });
+
+    } catch (error) {
+        console.error('Erreur lors de la récupération du leaderboard:', error);
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
 });
 
 module.exports = router;

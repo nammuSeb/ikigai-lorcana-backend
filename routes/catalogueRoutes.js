@@ -4,20 +4,17 @@ const router = express.Router();
 const db = require('../config/db'); // Connexion à la base de données
 
 // Route pour obtenir le catalogue
-router.get('/', (req, res) => {
-    const query = 'SELECT * FROM catalogue';
+router.get('/', async (req, res) => {
+    try {
+        const [results] = await db.query('SELECT * FROM catalogue');
 
-    db.query(query, (error, results) => {
+        console.log(results);
 
-        console.log(results)
-
-        if (error) {
-            console.error('Erreur lors de la récupération du catalogue:', error);
-            res.status(500).json({ message: 'Erreur serveur' });
-        } else {
-            res.json(results);
-        }
-    });
+        res.json(results);
+    } catch (error) {
+        console.error('Erreur lors de la récupération du catalogue:', error);
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
 });
 
 module.exports = router;
