@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
 
-const POINT_ZERO = new Date("2024-11-15");
+const POINT_ZERO = new Date("2024-11-11");
 
 const getWeeklyPeriod = (weekNumber = 1) => {
     if (weekNumber < 1 || weekNumber > 4) {

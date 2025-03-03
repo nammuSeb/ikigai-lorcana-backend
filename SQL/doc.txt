@@ -1,0 +1,88 @@
+// Guide d'intégration du système de défis hebdomadaires
+
+/**
+ * ÉTAPE 1: Exécuter la migration SQL
+ * ---------------------------------------
+ * Exécutez le script SQL fourni dans le fichier 'sql-migration-final.sql'
+ * pour mettre à jour la structure de votre base de données.
+ */
+
+/**
+ * ÉTAPE 2: Installer node-cron
+ * ---------------------------------------
+ * Si ce n'est pas déjà fait, installez le package node-cron :
+ *
+ * npm install node-cron --save
+ */
+
+/**
+ * ÉTAPE 3: Créer les fichiers du service et du cron job
+ * ---------------------------------------
+ * 1. Créez un répertoire 'services' s'il n'existe pas déjà
+ * 2. Créez le fichier 'services/defiService.js' avec le contenu fourni
+ * 3. Créez un répertoire 'cron' s'il n'existe pas déjà
+ * 4. Créez le fichier 'cron/weeklyDefisCron.js' avec le contenu fourni
+ */
+
+/**
+ * ÉTAPE 4: Mettre à jour vos routes
+ * ---------------------------------------
+ * Adaptez vos routes existantes ou créez de nouvelles routes pour gérer le pool de défis.
+ * Vous pouvez utiliser le contenu fourni comme base, en l'adaptant à votre application.
+ */
+
+/**
+ * ÉTAPE 5: Intégrer le cron job dans votre application
+ * ---------------------------------------
+ * Dans votre fichier principal (app.js, server.js ou index.js), ajoutez:
+ */
+
+// Importer le cron job
+const { initWeeklyDefisCron } = require('./cron/weeklyDefisCron');
+
+// Plus bas dans votre code, après l'initialisation de l'application
+// et avant le démarrage du serveur:
+initWeeklyDefisCron();
+
+/**
+ * ÉTAPE 6: Ajouter des défis au pool
+ * ---------------------------------------
+ * Pour commencer, vous devez ajouter suffisamment de défis dans le pool.
+ * Vous pouvez:
+ *
+ * 1. Utiliser l'interface d'administration fournie
+ * 2. Insérer directement dans la base de données
+ * 3. Utiliser vos routes API pour ajouter des défis
+ *
+ * Assurez-vous d'avoir au moins 8 défis dans le pool pour permettre
+ * une rotation sans répétition d'une semaine à l'autre.
+ */
+
+/**
+ * ÉTAPE 7: Tester la génération des défis
+ * ---------------------------------------
+ * Pour tester la génération des défis sans attendre le lundi à minuit:
+ *
+ * 1. Décommentez la ligne "defiService.selectWeeklyDefis().catch(console.error);"
+ *    dans le fichier cron/weeklyDefisCron.js
+ * 2. Redémarrez votre application
+ * 3. Vérifiez dans la console les logs pour confirmer que les défis ont été générés
+ * 4. Vérifiez dans la base de données que les défis ont été ajoutés correctement
+ * 5. N'oubliez pas de recommenter cette ligne après le test
+ */
+
+/**
+ * REMARQUES IMPORTANTES
+ * ---------------------------------------
+ * 1. Ce système utilise la date actuelle pour déterminer la période de la semaine.
+ *    Assurez-vous que votre serveur est configuré avec le bon fuseau horaire.
+ *
+ * 2. Le cron job s'exécute tous les lundis à minuit. Si votre serveur est éteint à ce moment,
+ *    le job ne s'exécutera pas. Vous pouvez mettre en place une solution de secours pour vérifier
+ *    et générer les défis au démarrage de l'application si nécessaire.
+ *
+ * 3. Pour une solution plus robuste en production, envisagez d'utiliser:
+ *    - Un système de gestion de tâches externes comme Bull avec Redis
+ *    - Un cron job au niveau du système d'exploitation
+ *    - Un service cloud dédié aux tâches planifiées
+ */

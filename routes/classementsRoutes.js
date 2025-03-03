@@ -7,7 +7,7 @@ const getWeeklyPeriod = (weekNumber = 1) => {
         throw new Error("Le numéro de semaine doit être compris entre 1 et 4.");
     }
 
-    const startOfPeriod = new Date("2024-11-16"); // Date de départ fixe
+    const startOfPeriod = new Date("2024-11-11"); // Date de départ fixe
     startOfPeriod.setDate(startOfPeriod.getDate() + (7 * (weekNumber - 1)));
 
     const endOfPeriod = new Date(startOfPeriod);
@@ -29,6 +29,7 @@ router.get('/leaderboard', async (req, res) => {
                 j.id AS joueur_id,
                 j.pseudo,
                 j.nickname,
+                j.argent,
                 COALESCE(c.points, 0) as points,
                 c.start_date,
                 c.end_date
@@ -60,6 +61,7 @@ router.get('/leaderboard', async (req, res) => {
                 pseudo: row.pseudo,
                 nickname: row.nickname || '',
                 points: row.points,
+                argent: row.argent,
                 rank: rank,
                 pointsByDay: [row.points] // On retourne les points de la semaine dans un tableau
             };

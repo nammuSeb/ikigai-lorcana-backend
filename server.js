@@ -2,8 +2,14 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
+const cron = require('node-cron');
 const app = express();
 
+// Services
+const defiService = require('./services/defiService');
+const { initWeeklyDefisCron } = require('./cron/weeklyDefisCron');
+
+// Routes
 const joueursRoutes = require('./routes/joueursRoutes');
 const defisRoutes = require('./routes/defisRoutes');
 const tournoisRoutes = require('./routes/tournoisRoutes');
@@ -82,6 +88,16 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
     console.log(`Image uploaded: ${req.file.filename}`);
     res.json({ imageUrl: `/uploads/${req.file.filename}` });
 });
+
+// Initialisation du cron job pour la génération automatique des défis hebdomadaires
+initWeeklyDefisCron(true);
+
+// Génération immédiate des défis (décommenter pour tester, puis recommenter)
+/*
+defiService.selectWeeklyDefis()
+    .then(result => console.log(`Défis générés avec succès pour la période du ${result.startDate} au ${result.endDate}`))
+    .catch(error => console.error('Erreur lors de la génération des défis:', error));
+*/
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
